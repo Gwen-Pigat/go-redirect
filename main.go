@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -26,10 +27,13 @@ func init() {
 	fmt.Printf("DB is connected %v", DB)
 }
 
+const (
+	staticDir string = "static"
+	viewsDir  string = "templates"
+)
+
 func main() {
 	defer DB.Close()
-
-	staticDir := "static"
 	http.Handle("/"+staticDir+"/", http.StripPrefix("/"+staticDir+"/", http.FileServer(http.Dir(staticDir))))
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, staticDir+"/favicon.png")
@@ -53,35 +57,40 @@ type Data struct {
 }
 
 func updateData(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`
-	<html>
-            <head><title>Create new resource</title></head>
-            <body>
-                <h1>New resource</h1>
-				<a href="/">Return</a>
-				<form action="/update/call" method="POST">
-				<select required="required" name="contentType">
-					<option value="redirect">Redirect</option>
-					<option value="html">HTML</option>
-				</select>
-                <textarea name="contentValue" required style="min-height:150px"></textarea>
-				<button type="submit">Submit</button>
-				</form>
-            </body>
-        </html>`))
+	renderTemplate(w, "Create a new resources", map[string]any{
+		"template": "form",
+		"code":     http.StatusOK,
+	})
 }
 
-func renderHTML(w http.ResponseWriter, statusCode int, title string) {
-	w.Header().Set("Content-type", "text/html")
-	w.WriteHeader(statusCode)
-	w.Write([]byte(`
-	<html>
-            <head><title>` + title + `</title></head>
-            <body>
-                <h1 style="text-align:center">` + title + `</h1>
-				<a href="/update">Return to form</a>
-            </body>
-        </html>`))
+func renderTemplate(w http.ResponseWriter, title string, dataTemplate ...map[string]any) {
+	templateNameDefault := "result"
+	statusCodeDefault := http.StatusBadRequest
+	if len(dataTemplate) > 0 {
+		dataTpl := dataTemplate[0]
+		if dataTpl["template"] != "" {
+			templateNameDefault = dataTpl["template"].(string)
+		}
+		if dataTpl["code"] != "" {
+			statusCodeDefault = dataTpl["code"].(int)
+		}
+	}
+	w.WriteHeader(statusCodeDefault)
+	tpl, err := template.ParseFiles(
+		viewsDir+"/base.html",
+		viewsDir+"/includes/"+templateNameDefault+".include.html",
+		viewsDir+"/includes/head.include.html",
+	)
+	if err != nil {
+		http.Error(w, "Error rendering template 001: "+err.Error(), statusCodeDefault)
+		return
+	}
+	if err = tpl.ExecuteTemplate(w, "base.html", map[string]string{
+		"title": title,
+	}); err != nil {
+		http.Error(w, "Error rendering template 002: "+err.Error(), statusCodeDefault)
+		return
+	}
 }
 
 func updateDataCall(w http.ResponseWriter, r *http.Request) {
@@ -90,17 +99,16 @@ func updateDataCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
-		renderHTML(w, http.StatusBadRequest, "Form cannot be parsed : "+err.Error())
+		renderTemplate(w, "Form cannot be parsed : "+err.Error())
 		return
 	}
 	postValues := r.Form
-
 	if postValues.Get("contentType") == "" || postValues.Get("contentValue") == "" {
-		renderHTML(w, http.StatusBadRequest, "You have to fill all the fields")
+		renderTemplate(w, "You have to fill all the fields")
 		return
 	}
 	if postValues.Get("contentType") != "redirect" && postValues.Get("contentType") != "html" {
-		renderHTML(w, http.StatusBadRequest, "Your content type is not valid")
+		renderTemplate(w, "Your content type is not valid")
 		return
 	}
 	data := Data{
@@ -110,22 +118,28 @@ func updateDataCall(w http.ResponseWriter, r *http.Request) {
 	}
 	smtp, err := DB.Prepare("INSERT INTO data(date_add,content_value,content_type) VALUES(?,?,?)")
 	if err != nil {
-		renderHTML(w, http.StatusBadRequest, "Something wrong happened during prepare : "+err.Error())
+		renderTemplate(w, "Something wrong happened during prepare : "+err.Error())
 		return
 	}
 	defer smtp.Close()
 	_, err = smtp.Exec(data.DateAdd, data.ContentValue, data.ContentType)
 	if err != nil {
-		renderHTML(w, http.StatusBadRequest, "Something wrong happened during exec : "+err.Error())
+		renderTemplate(w, "Something wrong happened during exec : "+err.Error())
 		return
 	}
-	renderHTML(w, http.StatusOK, "Resources has been successfully added")
+	renderTemplate(w, "Resources has been successfully added", map[string]any{
+		"code": http.StatusOK,
+	})
 }
 
 func readData(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.Query("SELECT id,date_add,content_value,content_type FROM data ORDER BY id DESC LIMIT 1")
 	if err != nil {
-		http.Error(w, "Resource not found", http.StatusNotFound)
+		http.Error(w, "Resource not found : "+err.Error(), http.StatusNotFound)
+		return
+	}
+	if rows.Err() != nil {
+		http.Error(w, "Row error : "+rows.Err(), http.StatusNotFound)
 		return
 	}
 	var data Data
