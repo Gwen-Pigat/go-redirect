@@ -158,6 +158,7 @@ func readData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Resource not found", http.StatusNotFound)
 		return
 	}
+	fmt.Printf("Data is : \n%v of type %v\n", data.ContentValue, data.ContentType)
 	if data.ContentType == "redirect" {
 		http.Redirect(w, r, data.ContentValue, http.StatusMovedPermanently)
 		return
