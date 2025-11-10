@@ -3,7 +3,13 @@
     {{template "head" .}}
     <body>
         <main>
-            {{block "content" .}}Loading{{end}}
+            {{if eq .blockName "form"}}
+                {{template "form" .}}
+            {{else if eq .blockName "result"}} 
+                {{template "result" .}}
+            {{else}}
+                <p>Loading</p>
+            {{end}}
         </main>
     </body>
 </html>

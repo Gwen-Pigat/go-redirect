@@ -3,34 +3,51 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"html/template"
+	"log"
 	"net/http"
 	"os"
-	"text/template"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
 
-var DB *sql.DB
+var (
+	DB        *sql.DB
+	staticDir string = "static"
+	viewsDir  string = "templates"
+	tpl       *template.Template
+)
+
+type Data struct {
+	ID           int    `json:"id"`
+	DateAdd      string `json:"dateAdd"`
+	ContentValue string `json:"contentValue"`
+	ContentType  string `json:"contentType"`
+}
 
 func init() {
 	godotenv.Load()
 	var err error
 	DB, err = sql.Open("mysql", os.Getenv("DB_URI"))
 	if err != nil {
-		panic(err)
+		log.Fatal("Database open error : ", err)
 	}
 	if err := DB.Ping(); err != nil {
-		panic(err)
+		log.Fatal("Database ping error : ", err)
 	}
 	fmt.Printf("DB is connected %v", DB)
+	tpl, err = template.ParseFiles(
+		viewsDir+"/base.html",
+		viewsDir+"/includes/form.include.html",
+		viewsDir+"/includes/result.include.html",
+		viewsDir+"/includes/head.include.html",
+	)
+	if err != nil {
+		log.Fatal("Error parsing template :", err)
+	}
 }
-
-const (
-	staticDir string = "static"
-	viewsDir  string = "templates"
-)
 
 func main() {
 	defer DB.Close()
@@ -49,20 +66,6 @@ func main() {
 	fmt.Printf("\nServer listens on %v", port)
 }
 
-type Data struct {
-	ID           int    `json:"id"`
-	DateAdd      string `json:"dateAdd"`
-	ContentValue string `json:"contentValue"`
-	ContentType  string `json:"contentType"`
-}
-
-func updateData(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "Create a new resources", map[string]any{
-		"template": "form",
-		"code":     http.StatusOK,
-	})
-}
-
 func renderTemplate(w http.ResponseWriter, title string, dataTemplate ...map[string]any) {
 	templateNameDefault := "result"
 	statusCodeDefault := http.StatusBadRequest
@@ -76,21 +79,20 @@ func renderTemplate(w http.ResponseWriter, title string, dataTemplate ...map[str
 		}
 	}
 	w.WriteHeader(statusCodeDefault)
-	tpl, err := template.ParseFiles(
-		viewsDir+"/base.html",
-		viewsDir+"/includes/"+templateNameDefault+".include.html",
-		viewsDir+"/includes/head.include.html",
-	)
-	if err != nil {
-		http.Error(w, "Error rendering template 001: "+err.Error(), statusCodeDefault)
-		return
-	}
-	if err = tpl.ExecuteTemplate(w, "base.html", map[string]string{
-		"title": title,
+	if err := tpl.ExecuteTemplate(w, "base.html", map[string]string{
+		"title":     title,
+		"blockName": templateNameDefault,
 	}); err != nil {
 		http.Error(w, "Error rendering template 002: "+err.Error(), statusCodeDefault)
 		return
 	}
+}
+
+func updateData(w http.ResponseWriter, r *http.Request) {
+	renderTemplate(w, "Create a new resources", map[string]any{
+		"template": "form",
+		"code":     http.StatusOK,
+	})
 }
 
 func updateDataCall(w http.ResponseWriter, r *http.Request) {
@@ -136,10 +138,6 @@ func readData(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.Query("SELECT id,date_add,content_value,content_type FROM data ORDER BY id DESC LIMIT 1")
 	if err != nil {
 		http.Error(w, "Resource not found : "+err.Error(), http.StatusNotFound)
-		return
-	}
-	if rows.Err() != nil {
-		http.Error(w, "Row error : "+rows.Err(), http.StatusNotFound)
 		return
 	}
 	var data Data
