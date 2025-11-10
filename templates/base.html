@@ -3,9 +3,9 @@
     {{template "head" .}}
     <body>
         <main>
-            {{if eq .blockName "form"}}
+            {{if eq .BlockName "form"}}
                 {{template "form" .}}
-            {{else if eq .blockName "result"}} 
+            {{else if eq .BlockName "result"}} 
                 {{template "result" .}}
             {{else}}
                 <p>Loading</p>

@@ -1,0 +1,81 @@
+body{
+    font-family: "Roboto", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: auto;
+    font-style: normal;
+    font-variation-settings:
+        "wdth" 100;
+        padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    margin: auto;
+    width: max-content;
+}
+
+:root{
+    --white: #fff;
+    --grey: #c1c1c1;
+    --success: #28c223;
+    --error: #ff0000;
+}
+
+.error{
+    color: var(--error);
+}
+
+a,button{
+    padding: 0.5rem;
+    border-radius: 5px;
+    display: flex;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-weight: bold;
+    transition: all .4s;
+}
+a:hover, button:hover{
+    transition: all .4s;
+}
+
+a{
+    margin: 1rem 0;
+    background: var(--grey);
+    border: 2px var(--grey) solid;
+    color: var(--white);
+}
+a:hover{
+    background-color: var(--white);
+    color: var(--grey);
+}
+button{
+    width: 100%;
+    background: var(--success);
+    border: 2px var(--success) solid;
+    color: var(--white);
+}
+button:hover{
+    background-color: var(--white);
+    color: var(--success);
+    cursor: pointer;
+}
+
+form{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+select{
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 5px 5px 0 0;
+}
+textarea{
+    width: -webkit-fill-available;
+    padding: 0.5rem;
+    border-radius: 0 0 5px 5px;
+}

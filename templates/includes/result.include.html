@@ -1,4 +1,7 @@
 {{define "result"}}
-    <h1>{{.title}}</h1>
+    <h1 {{if ne .Code 200}}class="error"{{end}}>{{.Title}}</h1>
+    {{if ne .Code 200}}
+        <h2>Error code: {{.Code}}</h2>
+    {{end}}
     <a href="/update">Return home</a>
 {{end}}
