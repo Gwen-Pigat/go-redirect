@@ -26,6 +26,12 @@ type Data struct {
 	ContentValue string `json:"contentValue"`
 	ContentType  string `json:"contentType"`
 }
+type TemplateData struct {
+	Title     string
+	BlockName string
+	Code      int
+	Styles    []string
+}
 
 func init() {
 	godotenv.Load()
@@ -66,32 +72,38 @@ func main() {
 	fmt.Printf("\nServer listens on %v", port)
 }
 
-func renderTemplate(w http.ResponseWriter, title string, dataTemplate ...map[string]any) {
+func renderTemplate(w http.ResponseWriter, title string, dataTemplate ...TemplateData) {
 	templateNameDefault := "result"
 	statusCodeDefault := http.StatusBadRequest
 	if len(dataTemplate) > 0 {
-		dataTpl := dataTemplate[0]
-		if dataTpl["template"] != "" {
-			templateNameDefault = dataTpl["template"].(string)
+		tplData := dataTemplate[0]
+		if tplData.BlockName != "" {
+			templateNameDefault = tplData.BlockName
 		}
-		if dataTpl["code"] != "" {
-			statusCodeDefault = dataTpl["code"].(int)
+		if tplData.Code > 0 {
+			statusCodeDefault = tplData.Code
 		}
 	}
+	fmt.Printf("\nCode : %v, TplName : %v", statusCodeDefault, templateNameDefault)
 	w.WriteHeader(statusCodeDefault)
-	if err := tpl.ExecuteTemplate(w, "base.html", map[string]string{
-		"title":     title,
-		"blockName": templateNameDefault,
+	if err := tpl.ExecuteTemplate(w, "base.html", TemplateData{
+		Title:     title,
+		BlockName: templateNameDefault,
+		Code:      statusCodeDefault,
+		Styles: []string{
+			"/static/css/style.css",
+		},
 	}); err != nil {
 		http.Error(w, "Error rendering template 002: "+err.Error(), statusCodeDefault)
 		return
 	}
+
 }
 
 func updateData(w http.ResponseWriter, r *http.Request) {
-	renderTemplate(w, "Create a new resources", map[string]any{
-		"template": "form",
-		"code":     http.StatusOK,
+	renderTemplate(w, "Create a new resources", TemplateData{
+		BlockName: "form",
+		Code:      http.StatusOK,
 	})
 }
 
@@ -118,19 +130,13 @@ func updateDataCall(w http.ResponseWriter, r *http.Request) {
 		ContentValue: postValues.Get("contentValue"),
 		ContentType:  postValues.Get("contentType"),
 	}
-	smtp, err := DB.Prepare("INSERT INTO data(date_add,content_value,content_type) VALUES(?,?,?)")
+	_, err := DB.Exec("INSERT INTO data(date_add,content_value,content_type) VALUES(?,?,?)", data.DateAdd, data.ContentValue, data.ContentType)
 	if err != nil {
 		renderTemplate(w, "Something wrong happened during prepare : "+err.Error())
 		return
 	}
-	defer smtp.Close()
-	_, err = smtp.Exec(data.DateAdd, data.ContentValue, data.ContentType)
-	if err != nil {
-		renderTemplate(w, "Something wrong happened during exec : "+err.Error())
-		return
-	}
-	renderTemplate(w, "Resources has been successfully added", map[string]any{
-		"code": http.StatusOK,
+	renderTemplate(w, "Resources has been successfully added", TemplateData{
+		Code: http.StatusOK,
 	})
 }
 
@@ -140,6 +146,7 @@ func readData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Resource not found : "+err.Error(), http.StatusNotFound)
 		return
 	}
+	defer rows.Close()
 	var data Data
 	for rows.Next() {
 		if err := rows.Scan(&data.ID, &data.DateAdd, &data.ContentValue, &data.ContentType); err != nil {
